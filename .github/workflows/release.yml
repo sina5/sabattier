@@ -1,0 +1,107 @@
+name: Release
+
+# Push a tag like v0.1.0 to build every installer and attach them to a draft
+# GitHub release. Run it by hand (Actions → Release → Run workflow) to build
+# the installers as workflow artifacts without making a release.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.platform.name }} (${{ matrix.variant }})
+    runs-on: ${{ matrix.platform.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - { name: windows-x64, os: windows-latest, pattern: 'nsis/*.exe' }
+          - { name: macos-arm64, os: macos-latest, pattern: 'dmg/*.dmg' }
+        # standard: models download on first use. with-models: all models
+        # ship inside the installer (~575 MB more) so the app works offline.
+        variant: [standard, with-models]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the tag matches the app version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          version=$(python3 -c "import json; print(json.load(open('src-backend/tauri.conf.json'))['version'])")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match version $version in src-backend/tauri.conf.json"
+            exit 1
+          fi
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-backend
+          key: ${{ matrix.variant }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      # Keyed on models.rs, so the cache refreshes whenever a model's pinned
+      # URL or hash changes; the script re-checks every hash either way.
+      - name: Cache models
+        if: matrix.variant == 'with-models'
+        uses: actions/cache@v4
+        with:
+          path: src-backend/bundled-models
+          key: models-${{ hashFiles('src-backend/src/models.rs') }}
+      - name: Download models
+        if: matrix.variant == 'with-models'
+        run: python3 scripts/fetch-models.py
+
+      - name: Build installer
+        run: |
+          args=()
+          if [ "${{ matrix.variant }}" = with-models ]; then
+            args+=(--config src-backend/tauri.models.conf.json)
+          fi
+          npx --yes @tauri-apps/cli@^2 build "${args[@]}"
+
+      - name: Rename installer
+        run: |
+          mkdir dist
+          version=$(python3 -c "import json; print(json.load(open('src-backend/tauri.conf.json'))['version'])")
+          suffix=""
+          [ "${{ matrix.variant }}" = with-models ] && suffix="-with-models"
+          for f in src-backend/target/release/bundle/${{ matrix.platform.pattern }}; do
+            ext="${f##*.}"
+            [ "$ext" = exe ] && ext="setup.exe"
+            cp "$f" "dist/Sabattier-${version}-${{ matrix.platform.name }}${suffix}.${ext}"
+          done
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform.name }}-${{ matrix.variant }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --draft \
+            --title "Sabattier ${GITHUB_REF_NAME#v}" \
+            --generate-notes

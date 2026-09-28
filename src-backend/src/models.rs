@@ -1,6 +1,8 @@
 //! Model manager: the ML models the app can use, downloaded on first use into
 //! `<app data>/models`, verified against a pinned SHA-256, and loaded into an
 //! ONNX Runtime session that stays in memory for the rest of the session.
+//! The "with models" release ships the files inside the app instead (see
+//! tauri.models.conf.json); those are used in place of a download.
 
 use std::collections::HashMap;
 use std::io::{Read, Write};
@@ -36,6 +38,9 @@ pub const ESRGAN: &str = "esrgan";
 pub const YUNET: &str = "yunet";
 pub const FACE_LANDMARKS: &str = "face-landmarks";
 pub const SELFIE_SEGMENTER: &str = "selfie-multiclass";
+
+/// Folder under the app's resource dir that holds models shipped with the app.
+const BUNDLED_DIR: &str = "models";
 
 pub const MODELS: &[ModelSpec] = &[
     ModelSpec {
@@ -191,8 +196,17 @@ fn download(app: &AppHandle, spec: &'static ModelSpec, dest: &Path) -> Result<()
     std::fs::rename(&part, dest).map_err(|e| e.to_string())
 }
 
+/// The copy of the model shipped inside the app, if this build includes one.
+fn bundled_file(app: &AppHandle, spec: &ModelSpec) -> Option<PathBuf> {
+    let path = app.path().resource_dir().ok()?.join(BUNDLED_DIR).join(spec.file);
+    path.exists().then_some(path)
+}
+
 /// The model file, downloading it first if needed.
 fn ensure_file(app: &AppHandle, spec: &'static ModelSpec) -> Result<PathBuf, String> {
+    if let Some(path) = bundled_file(app, spec) {
+        return Ok(path);
+    }
     let dir = models_dir(app)?;
     let path = dir.join(spec.file);
     if !path.exists() && !adopt_old_model(&dir, spec.file, &path) {
@@ -257,6 +271,8 @@ pub struct ModelInfo {
     url: &'static str,
     license_file: &'static str,
     installed: bool,
+    /// Shipped inside the app, so it can't be deleted.
+    bundled: bool,
 }
 
 /// Every model, and whether it is on disk.
@@ -265,16 +281,20 @@ pub fn models_list(app: AppHandle) -> Result<Vec<ModelInfo>, String> {
     let dir = models_dir(&app)?;
     Ok(MODELS
         .iter()
-        .map(|m| ModelInfo {
-            id: m.id,
-            name: m.name,
-            purpose: m.purpose,
-            bytes: m.bytes,
-            license: m.license,
-            source: m.source,
-            url: m.url,
-            license_file: m.license_file,
-            installed: dir.join(m.file).exists(),
+        .map(|m| {
+            let bundled = bundled_file(&app, m).is_some();
+            ModelInfo {
+                id: m.id,
+                name: m.name,
+                purpose: m.purpose,
+                bytes: m.bytes,
+                license: m.license,
+                source: m.source,
+                url: m.url,
+                license_file: m.license_file,
+                installed: bundled || dir.join(m.file).exists(),
+                bundled,
+            }
         })
         .collect())
 }

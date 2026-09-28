@@ -178,7 +178,9 @@ function ModelSettings() {
               ),
             ),
           ),
-          m.installed
+          m.bundled
+            ? h('span', { className: 'model-state' }, 'Included with the app')
+            : m.installed
             ? h(
                 'button',
                 {

@@ -25,3 +25,6 @@ Desktop.ini
 # Editors
 .idea/
 *.swp
+
+# Models downloaded by scripts/fetch-models.py for the with-models build
+src-backend/bundled-models/

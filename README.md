@@ -4,7 +4,42 @@ A fast, batch photo color editor for macOS and Windows. Import a folder of photo
 (including RAW camera files), fix the lighting with Pixelmator-style adjustments or the
 histogram-driven **Auto Enhance**, and export everything as high-quality JPEGs.
 
-![status](https://img.shields.io/badge/status-v0.1-blue)
+![version](https://img.shields.io/badge/version-0.1.0-blue)
+
+See [CHANGELOG.md](CHANGELOG.md) for what changed in each release.
+
+![Sabattier with a portrait's background removed](images/screenshots/02-remove-background-light.png)
+
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%"><img src="images/screenshots/01-face-select-dark.png" alt="Face skin mask on one of two faces"></td>
+    <td width="50%"><img src="images/screenshots/04-background-mask-light.png" alt="Background mask darkened around two subjects"></td>
+  </tr>
+  <tr>
+    <td><b>Face masks</b> — pick a face and edit just its skin, eyes, lips or teeth.</td>
+    <td><b>Background mask</b> — darken or recolor everything behind the subject.</td>
+  </tr>
+  <tr>
+    <td><img src="images/screenshots/03-crop-dark.png" alt="Crop to 4:5 with aspect presets"></td>
+    <td><img src="images/screenshots/05-portrait-retouch-dark.png" alt="Portrait tools and simple adjustments"></td>
+  </tr>
+  <tr>
+    <td><b>Crop</b> — free or fixed ratios such as 1:1, 4:5 and 16:9.</td>
+    <td><b>Portrait retouch</b> — smooth skin, brighten eyes, whiten teeth.</td>
+  </tr>
+  <tr>
+    <td><img src="images/screenshots/06-rate-and-pick-light.png" alt="Star ratings on photos in the filmstrip"></td>
+    <td><img src="images/screenshots/07-export-dark.png" alt="Save dialog with quality, format and upscale options"></td>
+  </tr>
+  <tr>
+    <td><b>Rate and pick</b> — star, flag or reject photos and filter the filmstrip.</td>
+    <td><b>Export</b> — JPEG, PNG, WebP or TIFF, AI upscaling and watermarks.</td>
+  </tr>
+</table>
+
+Sample photos are from Unsplash; see [images/README.md](images/README.md) for credits.
 
 ## Features
 
@@ -101,7 +136,7 @@ histogram-driven **Auto Enhance**, and export everything as high-quality JPEGs.
 ## Running the app
 
 Sabattier is a [Tauri](https://tauri.app) app: a Rust backend and a plain
-HTML/CSS/JavaScript UI with no build step. You don't need Node.js or npm.
+HTML/CSS/JavaScript UI with no build step.
 
 ### Prerequisites
 
@@ -126,12 +161,10 @@ From the repository root:
 cargo tauri dev
 ```
 
-The first run compiles the backend, which takes a few minutes; later runs start in
-seconds. The window opens when the build finishes. Edits to `src-backend/` rebuild and
-relaunch the app automatically.
-
-The first time you use **Remove background**, Sabattier downloads its segmentation model
-(about 170 MB) into the app's data folder. Later uses work offline.
+The first time you use an AI tool (background removal, healing, lens blur, upscaling or
+the portrait tools), Sabattier downloads the model it needs into the app's data folder
+(from under 1 MB to about 200 MB each, about 575 MB for all of them). Later uses work
+offline. The "with models" installers ship every model, so nothing is downloaded.
 
 ### Build a release
 
@@ -141,6 +174,14 @@ cargo tauri build --no-bundle     # just the optimized executable
 ```
 
 Output lands in `src-backend/target/release/` (installers under `bundle/`).
+
+To build the version that ships every AI model inside the installer (about 575 MB
+more, and no downloads on first use), fetch the models and pass the extra config:
+
+```bash
+python scripts/fetch-models.py    # into src-backend/bundled-models/, hashes checked
+cargo tauri build --config src-backend/tauri.models.conf.json
+```
 
 ### Using the editor
 
@@ -164,28 +205,6 @@ Output lands in `src-backend/target/release/` (installers under `bundle/`).
    *Custom* quality and size), choose a folder and an optional filename suffix;
    existing files are never overwritten.
 
-### Smoke test
-
-An end-to-end check of import, auto enhance, background removal, crop, export,
-presets, histogram dragging, zoom and compare, plus pixel checks for every tool
-(curve, mixer, effects, masks, lens blur, watermark), culling, the ratings catalog,
-healing, upscaling, HDR merge, backup/restore, the export formats, and render
-timings on a synthetic 24 MP frame.
-
-Backend unit tests: `cargo test --release` in `src-backend/`. The tests that run a
-real model are skipped unless `SABATTIER_LAMA`, `SABATTIER_DEPTH` or
-`SABATTIER_ESRGAN` point at the model files, or `SABATTIER_FACES` at a folder with
-`yunet.onnx`, `face_landmarks.onnx`, `selfie_multiclass.onnx` and MediaPipe's
-public test `portrait.jpg`. Set `SABATTIER_SMOKE_IMPORT` to
-`;`-separated photo paths and, optionally, `SABATTIER_SMOKE_EXPORT` to a folder:
-
-```bash
-SABATTIER_SMOKE=1 SABATTIER_SMOKE_IMPORT="C:/photos/a.CR3;C:/photos/b.jpg" \
-  SABATTIER_SMOKE_EXPORT="C:/temp/out" cargo tauri dev
-```
-
-It prints a report and exits with status 0 on success. Add `SABATTIER_SMOKE_KEEP_OPEN=1`
-to leave the window open afterwards.
 
 ## Architecture
 
@@ -226,7 +245,7 @@ All application code is Apache-2.0 (see `LICENSE`). Dependencies: Tauri (MIT/Apa
 (MIT/Apache-2.0) with ONNX Runtime (MIT), image (MIT/Apache-2.0). The Barlow
 typeface is under the SIL Open Font License (`src-frontend/fonts/OFL.txt`). The RAW
 decoder, rawler, is LGPL-2.1; it is linked statically, and this repository's full
-source satisfies the LGPL relinking requirement. Model weights are downloaded at runtime, not bundled: ISNet "general use"
+source satisfies the LGPL relinking requirement. Model weights are downloaded at runtime, or shipped inside the "with models" installers: ISNet "general use"
 ([DIS](https://github.com/xuebinqin/DIS), Apache-2.0), LaMa
 ([big-lama](https://github.com/advimman/lama), Apache-2.0),
 Depth-Anything-V2 Small (Apache-2.0), Real-ESRGAN x4plus
