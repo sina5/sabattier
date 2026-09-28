@@ -10,6 +10,26 @@ See [CHANGELOG.md](CHANGELOG.md) for what changed in each release.
 
 ![Sabattier with a portrait's background removed](images/screenshots/02-remove-background-light.png)
 
+## Download
+
+Get the latest installer from the
+[releases page](https://github.com/sina5/sabattier/releases/latest):
+
+| System | Installer | With every AI model included |
+| --- | --- | --- |
+| Windows (64-bit) | `Sabattier-<version>-windows-x64.setup.exe` | `…-windows-x64-with-models.setup.exe` |
+| macOS (Apple Silicon) | `Sabattier-<version>-macos-arm64.dmg` | `…-macos-arm64-with-models.dmg` |
+
+The standard installer is small and downloads each AI model the first time you use
+the tool that needs it. The *with models* installer is about 575 MB larger and works
+fully offline from the start.
+
+The installers are not code-signed yet, so your system warns you the first time:
+
+- **Windows**: on the SmartScreen prompt, choose *More info* → *Run anyway*.
+- **macOS**: if the app is blocked, open *System Settings → Privacy & Security* and
+  choose *Open Anyway*.
+
 ## Screenshots
 
 <table>
