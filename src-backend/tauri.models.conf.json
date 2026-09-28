@@ -1,0 +1,7 @@
+{
+  "bundle": {
+    "resources": {
+      "bundled-models/*.onnx": "models/"
+    }
+  }
+}

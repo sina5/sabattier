@@ -1,0 +1,40 @@
+{
+  "productName": "Sabattier",
+  "version": "0.1.0",
+  "identifier": "com.sabattier.editor",
+  "build": {
+    "frontendDist": "../src-frontend"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Sabattier",
+        "width": 1500,
+        "height": 940,
+        "minWidth": 1100,
+        "minHeight": 700,
+        "backgroundColor": "#1b1b1d",
+        "dragDropEnabled": true
+      }
+    ],
+    "security": {
+      "csp": null
+    },
+    "withGlobalTauri": true
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis",
+      "dmg"
+    ],
+    "category": "Photography",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

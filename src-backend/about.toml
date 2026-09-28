@@ -1,0 +1,26 @@
+# cargo-about configuration: collects the license of every crate compiled into
+# the app for Settings → Open-source licenses. Regenerate with
+# scripts/update-licenses.sh after changing dependencies.
+accepted = [
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "MIT",
+    "MIT-0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "CC0-1.0",
+    "MPL-2.0",
+    "LGPL-2.1",
+    "BSL-1.0",
+    "0BSD",
+    "CDLA-Permissive-2.0",
+    "Unlicense",
+    "bzip2-1.0.6",
+]
+# Build-only and test-only crates are not shipped in the app.
+ignore-build-dependencies = true
+ignore-dev-dependencies = true

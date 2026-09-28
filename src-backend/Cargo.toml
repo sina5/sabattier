@@ -1,0 +1,38 @@
+[package]
+name = "sabattier"
+version = "0.1.0"
+description = "Batch photo color editor with histogram-driven auto enhance and RAW support"
+license = "Apache-2.0"
+edition = "2024"
+rust-version = "1.90"
+
+[lib]
+name = "sabattier_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7.0", features = [] }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+tauri = { version = "2.12.0", features = [] }
+tauri-plugin-dialog = "2"
+rawler = "0.8"
+ort = "2.0.0-rc.13"
+image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "tiff", "webp"] }
+ureq = "3.4.2"
+sha2 = "0.11.0"
+urlencoding = "2.1.3"
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+rayon = "1.12"
+
+# RAW demosaicing and ONNX pre-processing are far too slow unoptimized; keep
+# dependencies optimized in dev builds so `tauri dev` is usable.
+[profile.dev.package."*"]
+opt-level = 3
+
+# The app's own pixel loops (HDR merge) are ~50x slower unoptimized: a
+# three-shot merge of 24 MP RAWs took over two minutes under `tauri dev`.
+[profile.dev.package.sabattier]
+opt-level = 3
