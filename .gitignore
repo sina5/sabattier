@@ -1,0 +1,27 @@
+# Local agent config / instructions (per repo convention)
+.claude
+AGENTS.md
+CLAUDE.md
+
+# Memories-branch worktree (see ../AGENTS.md)
+memories-wt/
+
+# Build output: Cargo artifacts and Tauri-generated schemas
+src-backend/target/
+src-backend/gen/schemas/
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.*
+
+# OS cruft
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editors
+.idea/
+*.swp
