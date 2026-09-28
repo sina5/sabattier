@@ -4,7 +4,17 @@ All notable changes to Sabattier are listed here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [0.1.0] - Unreleased
+## [0.1.1] - Unreleased
+
+### Fixed
+
+- macOS: the app downloaded from GitHub no longer fails to open with "Sabattier is
+  damaged and can't be opened". The app bundle is now ad-hoc signed as a whole, so
+  macOS shows its usual warning for apps from unidentified developers, which
+  *Open Anyway* in *System Settings → Privacy & Security* gets past.
+- README: how to open a copy of 0.1.0 that macOS reports as damaged.
+
+## [0.1.0] - 2026-09-27
 
 First release.
 
@@ -25,4 +35,5 @@ First release.
 - Release builds for Windows x64 and macOS Apple Silicon, each in two versions: one
   that downloads AI models on first use and one with every model included.
 
+[0.1.1]: https://github.com/sina5/sabattier/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/sina5/sabattier/releases/tag/v0.1.0

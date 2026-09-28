@@ -4,7 +4,7 @@ A fast, batch photo color editor for macOS and Windows. Import a folder of photo
 (including RAW camera files), fix the lighting with Pixelmator-style adjustments or the
 histogram-driven **Auto Enhance**, and export everything as high-quality JPEGs.
 
-![version](https://img.shields.io/badge/version-0.1.0-blue)
+![version](https://img.shields.io/badge/version-0.1.1-blue)
 
 See [CHANGELOG.md](CHANGELOG.md) for what changed in each release.
 
@@ -28,7 +28,9 @@ The installers are not code-signed yet, so your system warns you the first time:
 
 - **Windows**: on the SmartScreen prompt, choose *More info* → *Run anyway*.
 - **macOS**: if the app is blocked, open *System Settings → Privacy & Security* and
-  choose *Open Anyway*.
+  choose *Open Anyway*. If macOS instead says the app "is damaged and can't be
+  opened", run `xattr -dr com.apple.quarantine /Applications/Sabattier.app` in
+  Terminal and open it again.
 
 ## Screenshots
 
