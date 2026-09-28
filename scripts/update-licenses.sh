@@ -28,7 +28,8 @@ for lic in about["licenses"]:
     })
 licenses.sort(key=lambda l: (l["id"], l["crates"][0]["name"] if l["crates"] else ""))
 out = {
-    "cargoLockSha256": hashlib.sha256(open(lock_path, "rb").read()).hexdigest(),
+    # LF endings, as the backend test hashes it (Windows checkouts use CRLF).
+    "cargoLockSha256": hashlib.sha256(open(lock_path, "rb").read().replace(b"\r\n", b"\n")).hexdigest(),
     "crateCount": len({(c["name"], c["version"]) for l in licenses for c in l["crates"]}),
     "licenses": licenses,
 }

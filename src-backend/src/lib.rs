@@ -79,10 +79,11 @@ mod license_tests {
     #[test]
     fn third_party_licenses_are_current() {
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-        let lock = std::fs::read(dir.join("Cargo.lock")).unwrap();
+        // Hash with LF endings: a Windows checkout turns them into CRLF.
+        let lock = std::fs::read_to_string(dir.join("Cargo.lock")).unwrap().replace("\r\n", "\n");
         let list: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(dir.join("../src-frontend/licenses/third-party.json")).unwrap()).unwrap();
-        let hex: String = Sha256::digest(&lock).iter().map(|b| format!("{b:02x}")).collect();
+        let hex: String = Sha256::digest(lock.as_bytes()).iter().map(|b| format!("{b:02x}")).collect();
         assert_eq!(
             list["cargoLockSha256"].as_str(),
             Some(hex.as_str()),
