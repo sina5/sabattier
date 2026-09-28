@@ -1748,6 +1748,11 @@ select {
   overflow: hidden;
 }
 
+.progress-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .progress > div {
   height: 100%;
   background: var(--accent);

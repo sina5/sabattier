@@ -101,6 +101,9 @@ export const backend = {
       },
     }),
 
+  /** Stop the running upscale (true), or allow upscaling again (false). */
+  upscaleSetCancelled: (cancelled) => invoke('upscale_set_cancelled', { cancelled }),
+
   /** Tile progress of an upscale: cb(done, total). */
   onUpscaleProgress(cb) {
     return listen('upscale-progress', (e) => cb(e.payload.done, e.payload.total));

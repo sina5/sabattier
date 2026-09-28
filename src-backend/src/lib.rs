@@ -53,6 +53,7 @@ pub fn run() {
             links::open_review,
             depth::estimate_depth,
             upscale::upscale_save,
+            upscale::upscale_set_cancelled,
             hdr::hdr_add_frame,
             hdr::merge_hdr,
             parallel::set_multicore,

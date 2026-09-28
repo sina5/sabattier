@@ -3,6 +3,8 @@
 //! the finished (cropped, adjusted, watermarked) frame; the result is encoded
 //! and written here, so the large upscaled image never crosses the bridge.
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use image::imageops::FilterType;
 use image::{DynamicImage, ImageFormat, RgbImage, RgbaImage};
 use ort::session::Session;
@@ -17,8 +19,15 @@ const TILE: usize = 128;
 const OVERLAP: usize = 16;
 const STRIDE: usize = TILE - 2 * OVERLAP;
 const SCALE: usize = 4;
+/// Share of the model's result in the output; the rest is a plain Lanczos
+/// resize. Real-ESRGAN treats skin texture and grain as noise and paints
+/// faces smooth; half and half keeps the texture and most of the sharper edges.
+const MODEL_WEIGHT: f32 = 0.5;
 /// Longest edge an upscaled photo may have.
 pub const MAX_OUT: u32 = 8192;
+/// Set by the Cancel button while saving; checked before every tile.
+static CANCELLED: AtomicBool = AtomicBool::new(false);
+const CANCELLED_ERR: &str = "upscale cancelled";
 
 #[derive(Clone, serde::Serialize)]
 struct Progress {
@@ -27,11 +36,13 @@ struct Progress {
 }
 
 /// Upscale RGB by `factor` (2 or 4). 2× runs the 4× model and halves each
-/// tile right away, so memory stays at the output size.
+/// tile right away, so memory stays at the output size. Stops with an error
+/// as soon as `cancelled` is set.
 pub fn upscale_rgb(
     session: &mut Session,
     src: &RgbImage,
     factor: u32,
+    cancelled: &AtomicBool,
     mut progress: impl FnMut(usize, usize),
 ) -> Result<RgbImage, String> {
     let (w, h) = (src.width() as usize, src.height() as usize);
@@ -43,18 +54,23 @@ pub fn upscale_rgb(
     let name = session.inputs()[0].name().to_string();
     let plane = TILE * TILE;
     let mut input = vec![0f32; 3 * plane];
+    let mut src_tile = RgbImage::new(TILE as u32, TILE as u32);
     for ty in 0..rows {
         for tx in 0..cols {
+            if cancelled.load(Ordering::Relaxed) {
+                return Err(CANCELLED_ERR.into());
+            }
             // Tile origin in image space, context included; edges replicate.
             let (x0, y0) = ((tx * STRIDE) as isize - OVERLAP as isize, (ty * STRIDE) as isize - OVERLAP as isize);
             for y in 0..TILE {
                 let sy = (y0 + y as isize).clamp(0, h as isize - 1) as u32;
                 for x in 0..TILE {
                     let sx = (x0 + x as isize).clamp(0, w as isize - 1) as u32;
-                    let p = src.get_pixel(sx, sy);
+                    let p = *src.get_pixel(sx, sy);
                     for c in 0..3 {
                         input[c * plane + y * TILE + x] = p[c] as f32 / 255.0;
                     }
+                    src_tile.put_pixel(x as u32, y as u32, p);
                 }
             }
             let tensor = Tensor::from_array(([1usize, 3, TILE, TILE], input.clone())).map_err(|e| e.to_string())?;
@@ -77,14 +93,17 @@ pub fn upscale_rgb(
             } else {
                 image::imageops::resize(&tile, (TILE * f) as u32, (TILE * f) as u32, FilterType::Lanczos3)
             };
+            let plain = image::imageops::resize(&src_tile, (TILE * f) as u32, (TILE * f) as u32, FilterType::Lanczos3);
             // Keep the tile's centre (its STRIDE² share of the image), scaled.
             let (ox, oy) = (tx * STRIDE, ty * STRIDE);
             let keep_w = STRIDE.min(w - ox) * f;
             let keep_h = STRIDE.min(h - oy) * f;
             for y in 0..keep_h {
                 for x in 0..keep_w {
-                    let p = *tile.get_pixel((OVERLAP * f + x) as u32, (OVERLAP * f + y) as u32);
-                    out.put_pixel((ox * f + x) as u32, (oy * f + y) as u32, p);
+                    let (px, py) = ((OVERLAP * f + x) as u32, (OVERLAP * f + y) as u32);
+                    let (m, p) = (tile.get_pixel(px, py), plain.get_pixel(px, py));
+                    let mix = |c: usize| (m[c] as f32 * MODEL_WEIGHT + p[c] as f32 * (1.0 - MODEL_WEIGHT)).round() as u8;
+                    out.put_pixel((ox * f + x) as u32, (oy * f + y) as u32, image::Rgb([mix(0), mix(1), mix(2)]));
                 }
             }
             progress(ty * cols + tx + 1, total);
@@ -126,13 +145,20 @@ pub async fn upscale_save(app: AppHandle, request: Request<'_>) -> Result<(), St
     let emitter = app.clone();
     let rgb = models::with_session(app, ESRGAN, move |session| {
         let rgb = DynamicImage::ImageRgba8(rgba.clone()).to_rgb8();
-        let big = upscale_rgb(session, &rgb, factor, |done, total| {
+        let big = upscale_rgb(session, &rgb, factor, &CANCELLED, |done, total| {
             let _ = emitter.emit("upscale-progress", Progress { done, total });
         })?;
         Ok((big, rgba))
     })
     .await?;
     crate::blocking(move || save(&path, &format, quality, rgb)).await
+}
+
+/// Cancel (`true`) the running upscale and any that start later, or allow
+/// upscaling again (`false`, at the start of each save).
+#[tauri::command]
+pub fn upscale_set_cancelled(cancelled: bool) {
+    CANCELLED.store(cancelled, Ordering::Relaxed);
 }
 
 /// Encode the upscaled RGB, bringing back a (resized) alpha channel for cutouts.
@@ -183,7 +209,7 @@ mod tests {
         for factor in [2u32, 4] {
             let mut calls = 0;
             let t = std::time::Instant::now();
-            let out = upscale_rgb(&mut session, &src, factor, |_, _| calls += 1).unwrap();
+            let out = upscale_rgb(&mut session, &src, factor, &AtomicBool::new(false), |_, _| calls += 1).unwrap();
             eprintln!("{factor}x of {w}x{h}: {calls} tiles in {:?}", t.elapsed());
             assert_eq!((out.width(), out.height()), (w * factor, h * factor));
             // Colors follow the source.
@@ -198,5 +224,18 @@ mod tests {
             let seam = step(STRIDE as u32 * factor - 1);
             assert!(seam <= 6, "{factor}x seam jump {seam}");
         }
+    }
+
+    /// Runs the real model when SABATTIER_ESRGAN is set: a cancelled upscale
+    /// stops before its first tile.
+    #[test]
+    fn stops_when_cancelled() {
+        let Ok(path) = std::env::var("SABATTIER_ESRGAN") else { return };
+        let mut session = Session::builder().unwrap().commit_from_file(path).unwrap();
+        let src = RgbImage::new(300, 300);
+        let mut calls = 0;
+        let result = upscale_rgb(&mut session, &src, 2, &AtomicBool::new(true), |_, _| calls += 1);
+        assert_eq!(result.err().as_deref(), Some(CANCELLED_ERR));
+        assert_eq!(calls, 0);
     }
 }

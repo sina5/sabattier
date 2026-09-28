@@ -6,6 +6,9 @@ import { FORMATS, drawWatermark } from '../engine/export.js';
 import { getThumbBitmap, store, visibleImages } from '../state/store.js';
 import { Toggle } from './panel/Toggle.js';
 
+/** Added to file names when saving next to the originals with no suffix given. */
+const DEFAULT_SUFFIX = '-edited';
+
 const SIZES = [
   { label: 'Original size', value: null },
   { label: 'Long edge 4096 px', value: 4096 },
@@ -289,7 +292,7 @@ export function ExportDialog() {
   const suffix = h('input', {
     className: 'text-input narrow',
     id: 'export-suffix',
-    value: '-edited',
+    value: DEFAULT_SUFFIX,
     placeholder: 'optional',
     onInput: () => {
       suffix.value = suffix.value.replace(/[\\/:*?"<>|]/g, '');
@@ -310,7 +313,8 @@ export function ExportDialog() {
         dir,
         quality: custom ? st().quality : p.quality,
         maxDim: custom ? (size.value ? Number(size.value) : null) : p.maxDim,
-        suffix: suffix.value,
+        // Next to the originals, a suffix keeps the copies apart from them.
+        suffix: suffix.value || (dir ? '' : DEFAULT_SUFFIX),
         onlyShown: !scopeRow.hidden && onlyShown.checked,
       });
     },
@@ -320,11 +324,9 @@ export function ExportDialog() {
 
   const setDir = (d) => {
     dir = d;
-    folderPath.textContent = dir || 'No folder chosen yet';
+    folderPath.textContent = dir || 'Same folder as each photo';
     folderPath.title = dir;
     folderBtn.textContent = dir ? 'Change…' : 'Choose…';
-    saveBtn.disabled = !dir;
-    saveBtn.title = dir ? '' : 'Choose a folder first';
   };
   setDir('');
 
@@ -425,10 +427,26 @@ export function ExportOverlay() {
   const heading = h('h2');
   const file = h('div', { className: 'file' });
   const bar = h('div');
+  const cancel = h(
+    'button',
+    {
+      className: 'btn ghost',
+      title: 'Stop saving. Photos already saved are kept.',
+      onClick: () => store.getState().cancelExport(),
+    },
+    'Cancel',
+  );
   const el = h(
     'div',
     { className: 'overlay' },
-    h('div', { className: 'dialog progress-card', role: 'status' }, heading, file, h('div', { className: 'progress' }, bar)),
+    h(
+      'div',
+      { className: 'dialog progress-card', role: 'status' },
+      heading,
+      file,
+      h('div', { className: 'progress' }, bar),
+      h('div', { className: 'progress-actions' }, cancel),
+    ),
   );
   bind(
     (s) => s.exporting,
@@ -443,6 +461,8 @@ export function ExportOverlay() {
           ? `${exporting.current} · ${exporting.detail}`
           : exporting.current;
       bar.style.width = `${(exporting.done / Math.max(1, exporting.total)) * 100}%`;
+      cancel.hidden = done;
+      cancel.disabled = store.getState().exportCancelled;
     },
   );
   return el;

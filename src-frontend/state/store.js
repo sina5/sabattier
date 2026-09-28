@@ -12,7 +12,10 @@ const CONFIRM_DELETE_KEY = 'sabattier.confirmEditDelete';
 const MULTICORE_KEY = 'sabattier.multicore';
 const EXPORT_PREFS_KEY = 'sabattier.exportPrefs';
 
-/** Output format and watermark, remembered between sessions. */
+/**
+ * Output format and watermark, remembered between sessions. Upscale is not:
+ * it is slow, so it starts Off each time the Save dialog opens.
+ */
 function defaultExportPrefs() {
   return {
     format: 'jpeg',
@@ -38,7 +41,7 @@ function loadExportPrefs() {
     if (!saved) return d;
     return {
       format: FORMATS[saved.format] ? saved.format : d.format,
-      upscale: [0, 2, 4].includes(saved.upscale) ? saved.upscale : 0,
+      upscale: 0,
       watermark: { ...d.watermark, ...saved.watermark },
     };
   } catch {
@@ -643,6 +646,8 @@ export const store = create((set, get) => {
     quality: 0.95,
     busy: null,
     exporting: null,
+    /** Set by Cancel on the saving card; exportAll stops at the next step. */
+    exportCancelled: false,
     exportDialogOpen: false,
     settingsOpen: false,
     presets: [],
@@ -696,7 +701,8 @@ export const store = create((set, get) => {
       const next = { ...cur, ...patch, watermark: { ...cur.watermark, ...patch.watermark } };
       set({ exportPrefs: next });
       try {
-        localStorage.setItem(EXPORT_PREFS_KEY, JSON.stringify(next));
+        const { upscale: _notSaved, ...remembered } = next;
+        localStorage.setItem(EXPORT_PREFS_KEY, JSON.stringify(remembered));
       } catch {
         // the choice still applies for this session
       }
@@ -1208,8 +1214,21 @@ export const store = create((set, get) => {
       set({ canUndo: true, canRedo: redoStack.length > 0 });
     },
 
+    /**
+     * Stop saving after the current photo; a running upscale stops at its
+     * next tile. Photos already saved stay on disk.
+     */
+    cancelExport() {
+      if (!get().exporting || get().exportCancelled) return;
+      set((st) => ({ exportCancelled: true, exporting: { ...st.exporting, detail: 'Canceling…' } }));
+      void backend.upscaleSetCancelled(true);
+    },
+
     setExportDialogOpen(open) {
-      set({ exportDialogOpen: open });
+      set((st) => ({
+        exportDialogOpen: open,
+        exportPrefs: open ? { ...st.exportPrefs, upscale: 0 } : st.exportPrefs,
+      }));
     },
 
     setSettingsOpen(open) {
@@ -1217,27 +1236,30 @@ export const store = create((set, get) => {
     },
 
     /**
-     * Save photos with opts { dir, quality, maxDim, suffix, onlyShown }; the
+     * Save photos with opts { dir, quality, maxDim, suffix, onlyShown }; an
+     * empty `dir` saves each photo next to its original. The
      * format and watermark come from exportPrefs. `onlyShown` limits the save
      * to the photos the filmstrip filter shows.
      */
     async exportAll(opts) {
       const { format, watermark, upscale } = get().exportPrefs;
+      const pool = opts.onlyShown ? visibleImages(get()) : get().images;
+      const ready = pool.filter((i) => i.status !== 'error');
+      if (!ready.length) return;
       const skippedUpscale = [];
       let stopUpscaleProgress = () => {};
       if (upscale) {
+        await backend.upscaleSetCancelled(false);
         stopUpscaleProgress = await backend.onUpscaleProgress((done, total) =>
           set((st) => ({
             exporting: st.exporting && { ...st.exporting, detail: `Upscaling… ${Math.round((100 * done) / total)}%` },
           })),
         );
       }
-      const pool = opts.onlyShown ? visibleImages(get()) : get().images;
-      const ready = pool.filter((i) => i.status !== 'error');
-      if (!ready.length || !opts.dir) return;
-      set({ exporting: { done: 0, total: ready.length, current: '' }, exportDialogOpen: false });
+      set({ exporting: { done: 0, total: ready.length, current: '' }, exportDialogOpen: false, exportCancelled: false });
       let logo = null;
       const failed = [];
+      let saved = 0;
       try {
         if (watermark.enabled && watermark.kind === 'image' && watermark.imagePath) {
           logo = await decodeImage(watermark.imagePath).catch((err) => {
@@ -1246,6 +1268,7 @@ export const store = create((set, get) => {
           });
         }
         for (let i = 0; i < ready.length; i++) {
+          if (get().exportCancelled) break;
           const item = ready[i];
           set({ exporting: { done: i, total: ready.length, current: item.name } });
           try {
@@ -1258,10 +1281,11 @@ export const store = create((set, get) => {
             // Cutouts need alpha: JPEG falls back to PNG for them.
             const fmt = formatFor(format, item.settings);
             const stem = item.name.replace(/\.[^.]+$/, '') + opts.suffix;
-            const outPath = await backend.uniquePath(`${opts.dir}/${stem}.${FORMATS[fmt].ext}`);
+            const dir = opts.dir || item.path.replace(/[\\/][^\\/]*$/, '');
+            const outPath = await backend.uniquePath(`${dir}/${stem}.${FORMATS[fmt].ext}`);
             // Largest factor that stays within the upscaler's size limit.
             const long = Math.max(canvas.width, canvas.height);
-            const factor = [upscale, 2].find((f) => f && long * f <= UPSCALE_MAX) ?? 0;
+            const factor = upscale ? ([upscale, 2].find((f) => long * f <= UPSCALE_MAX) ?? 0) : 0;
             if (upscale && factor !== upscale) skippedUpscale.push(item.name);
             if (factor) {
               set((st) => ({ exporting: { ...st.exporting, detail: 'Upscaling…' } }));
@@ -1272,7 +1296,10 @@ export const store = create((set, get) => {
               if (encoded.blob) await backend.writeFile(outPath, await encoded.blob.arrayBuffer());
               else await backend.savePixels(outPath, fmt, encoded.pixels);
             }
+            saved++;
           } catch (err) {
+            // Cancel stops an upscale mid-photo; that photo isn't a failure.
+            if (get().exportCancelled) break;
             console.error(`Export failed for ${item.name}:`, err);
             failed.push(item.name);
           }
@@ -1280,10 +1307,16 @@ export const store = create((set, get) => {
       } finally {
         stopUpscaleProgress();
         logo?.close();
-        set({ exporting: { done: ready.length, total: ready.length, current: '' } });
-        setTimeout(() => set({ exporting: null }), 1500);
+        if (get().exportCancelled) set({ exporting: null });
+        else {
+          set({ exporting: { done: ready.length, total: ready.length, current: '' } });
+          setTimeout(() => set({ exporting: null }), 1500);
+        }
       }
-      if (failed.length) get().notify(`Couldn't save ${failed.join(', ')}.`);
+      if (get().exportCancelled) {
+        set({ exportCancelled: false });
+        get().notify(`Saving canceled. ${saved} of ${ready.length} photos saved.`);
+      } else if (failed.length) get().notify(`Couldn't save ${failed.join(', ')}.`);
       else if (skippedUpscale.length) {
         get().notify(`Too large to upscale fully (max ${UPSCALE_MAX} px): ${skippedUpscale.join(', ')} saved at a smaller factor or original size.`);
       }
