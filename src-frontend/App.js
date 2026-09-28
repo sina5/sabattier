@@ -4,6 +4,7 @@ import { SettingsDialog } from './components/SettingsDialog.js';
 import { ConfirmEditDelete } from './components/ConfirmEditDelete.js';
 import { Filmstrip } from './components/Filmstrip.js';
 import { Preview } from './components/Preview.js';
+import { SupportNote } from './components/SupportNote.js';
 import { Toast } from './components/Toast.js';
 import { TopBar } from './components/TopBar.js';
 import { Welcome } from './components/Welcome.js';
@@ -78,5 +79,5 @@ export function App() {
     },
   );
 
-  return h('div', { className: 'app' }, TopBar(), welcome, workspace, dropHint, ExportDialog(), ExportOverlay(), SettingsDialog(), ConfirmEditDelete());
+  return h('div', { className: 'app' }, TopBar(), welcome, workspace, dropHint, ExportDialog(), ExportOverlay(), SettingsDialog(), ConfirmEditDelete(), SupportNote());
 }

@@ -162,6 +162,9 @@ export const backend = {
 
   /** Opens the project or sponsor page in the default browser (allowlisted in links.rs). */
   openLink: (url) => invoke('open_link', { url }),
+  /** Whether this OS's app store lists Sabattier, and opening its write-a-review page. */
+  reviewAvailable: () => invoke('review_available'),
+  openReview: () => invoke('open_review'),
   /** The app version from tauri.conf.json. */
   appVersion: () => window.__TAURI__.app.getVersion(),
 

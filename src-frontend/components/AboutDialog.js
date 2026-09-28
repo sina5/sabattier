@@ -5,13 +5,20 @@ import { mountDialog } from './LicenseViewer.js';
 import { showOpenSource } from './OpenSourceLicenses.js';
 
 const REPO_URL = 'https://github.com/sina5/Sabattier';
-const SPONSOR_URL = 'https://github.com/sponsors/sina5';
+export const SPONSOR_URL = 'https://github.com/sponsors/sina5';
 
-const linkRow = (iconName, label, url, action) =>
+/** The red heart that marks every sponsor link. */
+export function heartIcon(size) {
+  const el = icon('heart', size);
+  el.classList.add('heart-icon');
+  return el;
+}
+
+const linkRow = (iconEl, label, url, action) =>
   h(
     'div',
     { className: 'dialog-row' },
-    icon(iconName, 22),
+    iconEl,
     h('div', { className: 'row-text' }, h('span', { className: 'model-name' }, label), h('span', { className: 'model-desc about-url' }, url)),
     h('button', { className: 'btn', 'data-action': action, onClick: () => void backend.openLink(url) }, 'Open'),
   );
@@ -47,8 +54,8 @@ export function showAbout() {
       h(
         'div',
         { className: 'model-list' },
-        linkRow('file', 'Source code', REPO_URL, 'open-repo'),
-        linkRow('star', 'Sponsor', SPONSOR_URL, 'open-sponsor'),
+        linkRow(icon('file', 22), 'Source code', REPO_URL, 'open-repo'),
+        linkRow(heartIcon(22), 'Support this project', SPONSOR_URL, 'open-sponsor'),
       ),
       h(
         'p',

@@ -49,6 +49,8 @@ pub fn run() {
             background::remove_background,
             inpaint::inpaint,
             links::open_link,
+            links::review_available,
+            links::open_review,
             depth::estimate_depth,
             upscale::upscale_save,
             hdr::hdr_add_frame,
