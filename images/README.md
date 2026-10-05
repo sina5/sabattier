@@ -1,9 +1,9 @@
 # Sample photos
 
-`samples/` holds the photos used to make the store-page screenshots in
-`screenshots/` (face selection, background selection, crops and other edits).
-They come from
-[Unsplash](https://unsplash.com) under the [Unsplash License](https://unsplash.com/license).
+The `samples/` folder contains the photos for the store-page screenshots in
+`screenshots/`. The screenshots show face selection, background selection, crops and
+other edits. The photos are from [Unsplash](https://unsplash.com), with the
+[Unsplash License](https://unsplash.com/license).
 
 | File | Credit |
 | --- | --- |
